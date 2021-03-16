@@ -197,7 +197,46 @@ func (l *Loop) CreateDisambiguationElements(results []NpiInfo) map[string]ldk.Wh
 				label),
 			Order: uint32(i) + 1,
 			OnChange: func(key string) {
-				go func() {}()
+				go func() {
+					err := l.sidekick.Whisper().List(l.ctx, &ldk.WhisperContentList{
+						Label: fmt.Sprintf("Information for %v", item.Number),
+						Elements: map[string]ldk.WhisperContentListElement{
+							"number": &ldk.WhisperContentListElementPair{
+								Label: "NPI Number",
+								Order: 1,
+								Value: fmt.Sprintf("%v", item.Number),
+							},
+							"name": &ldk.WhisperContentListElementPair{
+								Label: "Name",
+								Order: 2,
+								Value: fmt.Sprintf("%v %v", item.Basic.FirstName, item.Basic.LastName),
+							},
+							"enumeration": &ldk.WhisperContentListElementPair{
+								Label: "Enumeration Type",
+								Order: 3,
+								Value: fmt.Sprintf("%v", item.EnumerationType),
+							},
+							"organization": &ldk.WhisperContentListElementPair{
+								Label: "Organization",
+								Order: 4,
+								Value: fmt.Sprintf("%v", item.Basic.Organization),
+							},
+							"address": &ldk.WhisperContentListElementPair{
+								Label: "Addresses",
+								Order: 5,
+								Value: CreateAddressStrings(item.Addresses),
+							},
+							"taxonomy": &ldk.WhisperContentListElementPair{
+								Label: "Taxonomies",
+								Order: 6,
+								Value: CreateTaxonomyStrings(item.Taxonimies),
+							},
+						},
+					})
+					if err != nil {
+						l.logger.Error("failed to emit whisper", "error", err)
+					}
+				}()
 			},
 		}
 	}
@@ -298,15 +337,35 @@ func (l *Loop) LoopStop() error {
 	return nil
 }
 
+func CreateTaxonomyStrings(taxonomies []Taxonomy) string {
+	taxonomyString := ""
+	for i := range taxonomies {
+		tax := taxonomies[i]
+		taxonomyString += fmt.Sprintf("%v) Primary:%v  Code:%v Description:%v State:%v License:%v\n", i+1, tax.Primary, tax.Code, tax.Description, tax.State, tax.License)
+	}
+	return taxonomyString
+}
+
+func CreateAddressStrings(addresses []Address) string {
+	addressString := ""
+	for i := range addresses {
+		address := addresses[i]
+		addressString += fmt.Sprintf("%v) %v, %v %v %v\n", i+1, address.City, address.State, address.PostalCode, address.Country)
+	}
+	return addressString
+}
+
 type LookupResults struct {
 	ResultCount int       `json:"result_count"`
 	Results     []NpiInfo `json:"results"`
 }
 
 type NpiInfo struct {
-	Number          int    `json:"number"`
-	Basic           Basic  `json:"basic"`
-	EnumerationType string `json:"enumeration_type"`
+	Number          int        `json:"number"`
+	Basic           Basic      `json:"basic"`
+	EnumerationType string     `json:"enumeration_type"`
+	Taxonimies      []Taxonomy `json:"taxonomies"`
+	Addresses       []Address
 }
 
 type Basic struct {
@@ -315,12 +374,11 @@ type Basic struct {
 	Organization string `json:"organization_name"`
 }
 
-type Addresses struct {
-	City       string     `json:"city"`
-	State      string     `json:"state"`
-	PostalCode string     `json:"postal_code"`
-	Country    string     `json:"country_name"`
-	Taxonimies []Taxonomy `json:"taxonomies"`
+type Address struct {
+	City       string `json:"city"`
+	State      string `json:"state"`
+	PostalCode string `json:"postal_code"`
+	Country    string `json:"country_name"`
 }
 
 type Taxonomy struct {
