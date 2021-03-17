@@ -144,7 +144,8 @@ func (l *Loop) CreateFormInputs() map[string]ldk.WhisperContentFormInput {
 		OnChange: func(city string) {
 			searchParams.City = city + "*"
 			if searchParams.State == "" {
-				err := l.sidekick.Whisper().Markdown(l.ctx, &ldk.WhisperContentMarkdown{
+				ctx, _ := context.WithTimeout(l.ctx, 5*time.Second)
+				err := l.sidekick.Whisper().Markdown(ctx, &ldk.WhisperContentMarkdown{
 					Label:    "LookNPI Error",
 					Markdown: "Searching by City requires State",
 				})
@@ -162,7 +163,8 @@ func (l *Loop) CreateFormInputs() map[string]ldk.WhisperContentFormInput {
 		OnChange: func(state string) {
 			searchParams.State = state + "*"
 			if searchParams.City == "" {
-				err := l.sidekick.Whisper().Markdown(l.ctx, &ldk.WhisperContentMarkdown{
+				ctx, _ := context.WithTimeout(l.ctx, 5*time.Second)
+				err := l.sidekick.Whisper().Markdown(ctx, &ldk.WhisperContentMarkdown{
 					Label:    "LookNPI Error",
 					Markdown: "Searching by State requires City",
 				})
