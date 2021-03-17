@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	ldk "github.com/open-olive/loop-development-kit/ldk/go"
 )
@@ -66,86 +67,7 @@ func (l *Loop) run() {
 		Markdown:    "Enter Search Criteria",
 		CancelLabel: "Cancel",
 		SubmitLabel: "Search",
-		Inputs: map[string]ldk.WhisperContentFormInput{
-			"number": &ldk.WhisperContentFormInputText{
-				Label:   "NPI Number",
-				Tooltip: "Exactly 10 digits",
-				Order:   1,
-				OnChange: func(number string) {
-					if len(number) != 10 {
-						err := l.sidekick.Whisper().Markdown(l.ctx, &ldk.WhisperContentMarkdown{
-							Label:    "LookupNPI Error",
-							Markdown: "Npi must be 10 digits",
-						})
-						if err != nil {
-							l.logger.Error("failed to emit whisper", "error", err)
-							return
-						}
-					}
-					searchParams.Number = number
-				},
-			},
-			"firstName": &ldk.WhisperContentFormInputText{
-				Label:   "First Name",
-				Tooltip: "Exact name or 2 letters and *",
-				Order:   2,
-				OnChange: func(firstName string) {
-					searchParams.FirstName = firstName
-				},
-			},
-			"lastName": &ldk.WhisperContentFormInputText{
-				Label:   "Last Name",
-				Tooltip: "Exact name or 2 letters and *",
-				Order:   3,
-				OnChange: func(lastName string) {
-					searchParams.LastName = lastName
-				},
-			},
-			"organization": &ldk.WhisperContentFormInputText{
-				Label:   "Organization",
-				Tooltip: "Exact name or 2 letters and *",
-				Order:   4,
-				OnChange: func(organization string) {
-					searchParams.Organization = organization
-				},
-			},
-			"city": &ldk.WhisperContentFormInputText{
-				Label:   "City",
-				Tooltip: "Exact name or 2 letters and *",
-				Order:   5,
-				OnChange: func(city string) {
-					searchParams.City = city
-					if searchParams.State == "" {
-						err := l.sidekick.Whisper().Markdown(l.ctx, &ldk.WhisperContentMarkdown{
-							Label:    "LookNPI Error",
-							Markdown: "Searching by City requires State",
-						})
-						if err != nil {
-							l.logger.Error("failed to emit whisper", "error", err)
-							return
-						}
-					}
-				},
-			},
-			"state": &ldk.WhisperContentFormInputText{
-				Label:   "State",
-				Tooltip: "2 Characters (Other criteria required)",
-				Order:   6,
-				OnChange: func(state string) {
-					searchParams.State = state
-					if searchParams.City == "" {
-						err := l.sidekick.Whisper().Markdown(l.ctx, &ldk.WhisperContentMarkdown{
-							Label:    "LookNPI Error",
-							Markdown: "Searching by State requires City",
-						})
-						if err != nil {
-							l.logger.Error("failed to emit whisper", "error", err)
-							return
-						}
-					}
-				},
-			},
-		},
+		Inputs:      l.CreateFormInputs(),
 	})
 	if err != nil {
 		l.logger.Error("Form Whisper failed", "error", err)
@@ -168,6 +90,90 @@ func (l *Loop) run() {
 		})
 	}
 	ClearSearchParams()
+}
+
+func (l *Loop) CreateFormInputs() map[string]ldk.WhisperContentFormInput {
+	inputs := map[string]ldk.WhisperContentFormInput{}
+	inputs["number"] = &ldk.WhisperContentFormInputText{
+		Label:   "NPI Number",
+		Tooltip: "Exactly 10 digits",
+		Order:   1,
+		OnChange: func(number string) {
+			if len(number) != 10 && len(number) > 0 {
+				ctx, _ := context.WithTimeout(l.ctx, 5*time.Second)
+				err := l.sidekick.Whisper().Markdown(ctx, &ldk.WhisperContentMarkdown{
+					Label:    "LookupNPI Error",
+					Markdown: "Npi must be 10 digits",
+				})
+				if err != nil {
+					l.logger.Error("failed to emit whisper", "error", err)
+					return
+				}
+			}
+			searchParams.Number = number
+		},
+	}
+	inputs["firstName"] = &ldk.WhisperContentFormInputText{
+		Label:   "First Name",
+		Tooltip: "Two Character Minimum",
+		Order:   2,
+		OnChange: func(firstName string) {
+			searchParams.FirstName = firstName + "*"
+		},
+	}
+	inputs["lastName"] = &ldk.WhisperContentFormInputText{
+		Label:   "Last Name",
+		Tooltip: "Two Character Minimum",
+		Order:   3,
+		OnChange: func(lastName string) {
+			searchParams.LastName = lastName + "*"
+		},
+	}
+	inputs["organization"] = &ldk.WhisperContentFormInputText{
+		Label:   "Organization",
+		Tooltip: "Two Character Minimum",
+		Order:   4,
+		OnChange: func(organization string) {
+			searchParams.Organization = organization + "*"
+		},
+	}
+	inputs["city"] = &ldk.WhisperContentFormInputText{
+		Label:   "City",
+		Tooltip: "Two Character Minimum",
+		Order:   5,
+		OnChange: func(city string) {
+			searchParams.City = city + "*"
+			if searchParams.State == "" {
+				err := l.sidekick.Whisper().Markdown(l.ctx, &ldk.WhisperContentMarkdown{
+					Label:    "LookNPI Error",
+					Markdown: "Searching by City requires State",
+				})
+				if err != nil {
+					l.logger.Error("failed to emit whisper", "error", err)
+					return
+				}
+			}
+		},
+	}
+	inputs["state"] = &ldk.WhisperContentFormInputText{
+		Label:   "State",
+		Tooltip: "2 Characters (Other criteria required)",
+		Order:   6,
+		OnChange: func(state string) {
+			searchParams.State = state + "*"
+			if searchParams.City == "" {
+				err := l.sidekick.Whisper().Markdown(l.ctx, &ldk.WhisperContentMarkdown{
+					Label:    "LookNPI Error",
+					Markdown: "Searching by State requires City",
+				})
+				if err != nil {
+					l.logger.Error("failed to emit whisper", "error", err)
+					return
+				}
+			}
+		},
+	}
+	return inputs
 }
 
 func ClearSearchParams() {
@@ -199,39 +205,8 @@ func (l *Loop) CreateDisambiguationElements(results []NpiInfo) map[string]ldk.Wh
 			OnChange: func(key string) {
 				go func() {
 					err := l.sidekick.Whisper().List(l.ctx, &ldk.WhisperContentList{
-						Label: fmt.Sprintf("Information for %v", item.Number),
-						Elements: map[string]ldk.WhisperContentListElement{
-							"number": &ldk.WhisperContentListElementPair{
-								Label: "NPI Number",
-								Order: 1,
-								Value: fmt.Sprintf("%v", item.Number),
-							},
-							"name": &ldk.WhisperContentListElementPair{
-								Label: "Name",
-								Order: 2,
-								Value: fmt.Sprintf("%v %v", item.Basic.FirstName, item.Basic.LastName),
-							},
-							"enumeration": &ldk.WhisperContentListElementPair{
-								Label: "Enumeration Type",
-								Order: 3,
-								Value: fmt.Sprintf("%v", item.EnumerationType),
-							},
-							"organization": &ldk.WhisperContentListElementPair{
-								Label: "Organization",
-								Order: 4,
-								Value: fmt.Sprintf("%v", item.Basic.Organization),
-							},
-							"address": &ldk.WhisperContentListElementPair{
-								Label: "Addresses",
-								Order: 5,
-								Value: CreateAddressStrings(item.Addresses),
-							},
-							"taxonomy": &ldk.WhisperContentListElementPair{
-								Label: "Taxonomies",
-								Order: 6,
-								Value: CreateTaxonomyStrings(item.Taxonimies),
-							},
-						},
+						Label:    fmt.Sprintf("Information for %v", item.Number),
+						Elements: l.CreateListElements(item),
 					})
 					if err != nil {
 						l.logger.Error("failed to emit whisper", "error", err)
@@ -298,6 +273,57 @@ func (l *Loop) CreateDisambiguationElements(results []NpiInfo) map[string]ldk.Wh
 			}()
 		},
 	}
+	return elements
+}
+
+func (l *Loop) CreateListElements(item NpiInfo) map[string]ldk.WhisperContentListElement {
+	elements := map[string]ldk.WhisperContentListElement{}
+	enumerationName := ""
+	switch item.EnumerationType {
+	case "NPI-1":
+		enumerationName = "Individual"
+	case "NPI-2":
+		enumerationName = "Organization"
+	}
+	elements["number"] = &ldk.WhisperContentListElementPair{
+		Label: "NPI Number",
+		Order: 1,
+		Value: fmt.Sprintf("%v", item.Number),
+	}
+	elements["name"] = &ldk.WhisperContentListElementPair{
+		Label: "Provider Name",
+		Order: 2,
+		Value: fmt.Sprintf("%v %v", item.Basic.FirstName, item.Basic.LastName),
+	}
+	elements["organization"] = &ldk.WhisperContentListElementPair{
+		Label: "Organization",
+		Order: 3,
+		Value: fmt.Sprintf("%v", item.Basic.Organization),
+	}
+	elements["enumeration"] = &ldk.WhisperContentListElementPair{
+		Label: "Enumeration Type",
+		Order: 5,
+		Value: fmt.Sprintf("%v", enumerationName),
+	}
+	elements["address"] = &ldk.WhisperContentListElementPair{
+		Label: "Addresses",
+		Order: 6,
+		Value: CreateAddressStrings(item.Addresses),
+	}
+	elements["taxonomy"] = &ldk.WhisperContentListElementPair{
+		Label: "Taxonomies",
+		Order: 7,
+		Value: CreateTaxonomyStrings(item.Taxonimies),
+	}
+
+	for i := range item.OtherNames {
+		name := item.OtherNames[i]
+		elements[fmt.Sprintf("%v", i)] = &ldk.WhisperContentListElementPair{
+			Label: name.Type,
+			Order: 4,
+			Value: fmt.Sprintf("%v %v %v %v", name.Prefix, name.FirstName, name.LastName, name.Organization),
+		}
+	}
 
 	return elements
 }
@@ -361,14 +387,23 @@ type LookupResults struct {
 }
 
 type NpiInfo struct {
-	Number          int        `json:"number"`
-	Basic           Basic      `json:"basic"`
-	EnumerationType string     `json:"enumeration_type"`
-	Taxonimies      []Taxonomy `json:"taxonomies"`
-	Addresses       []Address
+	Number          int         `json:"number"`
+	Basic           Basic       `json:"basic"`
+	EnumerationType string      `json:"enumeration_type"`
+	Taxonimies      []Taxonomy  `json:"taxonomies"`
+	Addresses       []Address   `json:"addresses"`
+	OtherNames      []OtherName `json:"other_names"`
 }
 
 type Basic struct {
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	Organization string `json:"organization_name"`
+}
+
+type OtherName struct {
+	Type         string `json:"type"`
+	Prefix       string `json:"prefix"`
 	FirstName    string `json:"first_name"`
 	LastName     string `json:"last_name"`
 	Organization string `json:"organization_name"`
