@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	ldk "github.com/open-olive/loop-development-kit/ldk/go"
@@ -73,7 +74,7 @@ func (l *Loop) run() {
 		l.logger.Error("Form Whisper failed", "error", err)
 	}
 
-	lookupResults := l.GetLookupResults(searchParams, limit, 0)
+	lookupResults := l.GetLookupResults(RemoveSpaces(searchParams), limit, 0)
 
 	elements := l.CreateDisambiguationElements(lookupResults.Results)
 
@@ -176,6 +177,16 @@ func (l *Loop) CreateFormInputs() map[string]ldk.WhisperContentFormInput {
 		},
 	}
 	return inputs
+}
+
+func RemoveSpaces(params SearchParams) SearchParams {
+	params.City = strings.ReplaceAll(params.City, " ", "+")
+	params.FirstName = strings.ReplaceAll(params.FirstName, " ", "+")
+	params.LastName = strings.ReplaceAll(params.LastName, " ", "+")
+	params.Number = strings.ReplaceAll(params.Number, " ", "+")
+	params.Organization = strings.ReplaceAll(params.Organization, " ", "+")
+	params.State = strings.ReplaceAll(params.State, " ", "+")
+	return params
 }
 
 func ClearSearchParams() {
